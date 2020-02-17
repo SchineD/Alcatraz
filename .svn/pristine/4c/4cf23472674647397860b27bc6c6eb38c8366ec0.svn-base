@@ -1,0 +1,22 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package alcatraz.client;
+
+import alcatraza2.*;
+import java.util.UUID;
+import java.rmi.Remote;
+import java.rmi.RemoteException;
+
+/**
+ *
+ * @author alexa
+ */
+public interface ClientInt extends Remote {
+    public boolean updateMove(Move MoveParameters, String Username) throws RemoteException;
+    public boolean confirmMoveUpdate(UUID moveID, String Username) throws RemoteException;
+    public void leaveGame(UUID LobbyID, String Username) throws RemoteException;
+
+}

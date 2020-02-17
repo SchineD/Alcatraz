@@ -1,0 +1,26 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package alcatraz.server;
+
+import java.rmi.Remote;
+import java.rmi.RemoteException;
+import java.util.UUID;
+import alcatraza2.*;
+import java.rmi.AlreadyBoundException;
+import java.rmi.NotBoundException;
+import alcatraz.client.ClientInt;
+/**
+ *
+ * @author alexa
+ */
+public interface ServerInt extends Remote {
+    public boolean registerServer(UUID playerId, ClientInt client) throws RemoteException, AlreadyBoundException; 
+    public boolean deregisterServer(UUID playerId) throws RemoteException, NotBoundException;
+    public alcatraza2.Lobby createLobby(String lobbyname, UUID lobbyID, int playerCount) throws RemoteException;
+    public boolean joinLobby(User username, alcatraza2.Lobby lobby) throws RemoteException;
+    public boolean leaveLobby(User username, alcatraza2.Lobby lobby) throws RemoteException;
+    public boolean sendLobby(User username, alcatraza2.Lobby lobby) throws RemoteException;
+}

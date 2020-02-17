@@ -1,0 +1,421 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package alcatraz.server;
+import alcatraz.client.ClientInt;
+import alcatraza2.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.Serializable;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.rmi.AlreadyBoundException;
+import java.rmi.NotBoundException;
+import java.rmi.Remote;
+import java.rmi.RemoteException;
+import java.rmi.registry.Registry;
+import java.rmi.server.UnicastRemoteObject;
+import java.util.UUID;
+import java.rmi.registry.LocateRegistry;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Enumeration;
+import spread.*;
+import java.util.Properties;
+
+/**
+ *
+ * @author alexa
+ */
+public class ServerImpl implements ServerInt, AdvancedMessageListener  {
+    static Registry reg;
+    
+    private ArrayList<alcatraza2.Lobby> Lobbies = new ArrayList();
+    private ArrayList<User> AllPlayers = new ArrayList();
+    private SpreadConnection connection = null;
+    private SpreadGroup serverGroup;
+    private SpreadGroup myGroup;
+    private SpreadGroup currentPrimaryGroup;
+    private boolean iAmPrimary = false;
+    private final short primaryMessage = 1;
+    private final short lobbyMessage = 2;
+    private final short playerMessage = 3;
+    private final String spreadGroupName;
+    private final String serverId;
+    private boolean isRunning = true;
+   
+            
+    public static void main(String[] args) throws RemoteException, AlreadyBoundException, SpreadException, IOException {
+    ServerImpl remoteObject = new ServerImpl();
+                
+        while(remoteObject.GetIsRunning()) {
+            try {
+                Thread.sleep(15000);
+                System.out.println("Server erstellt");
+            } catch (InterruptedException ex) {
+                //TODO
+    }
+        }
+        System.out.println("Program ended");     
+    }
+    
+    public ServerImpl() throws IOException {
+        this.serverId = UUID.randomUUID().toString();
+        
+        Properties properties = readProperties();
+        ArrayList<String>spreadIps = GetSpreadIps(properties);
+        spreadGroupName = properties.getProperty("spreadGroupName");
+        
+        try {
+            this.connection = initSpreadConnection(spreadIps, serverId);
+            
+            System.out.println("Spreadverbindung erstellt");
+            
+        } catch (SpreadException | UnknownHostException ex) {
+            //TO-DO;
+        }
+        
+        if (this.connection == null) {
+            this.isRunning = false;
+            return;
+        }
+        
+        this.serverGroup = initSpreadGroup(connection, spreadGroupName);
+        this.myGroup = this.connection.getPrivateGroup();
+    }
+    
+    @Override
+    public boolean registerPlayer(UUID playerId, ClientInt client) throws RemoteException, AlreadyBoundException {
+        User NewUser = new User();
+        NewUser.setUserID(playerId);
+        NewUser.setClient(client);
+        
+        System.out.println("Neuer Player erstellt");
+        
+        AllPlayers.add(NewUser);
+        try {
+        reg.rebind(playerId.toString(), (Remote) client);
+        
+        if(iAmPrimary == true) {
+            sendMessage(connection, spreadGroupName, AllPlayers, playerMessage);
+        }
+        return true;
+        }
+        catch (RemoteException ex)
+        {
+            //TODO
+        return false;
+        }
+        
+        
+    }
+    
+    @Override
+    public boolean deregisterPlayer(UUID playerId) throws RemoteException, NotBoundException {
+         for (int i = 0; i < AllPlayers.size(); i++) {
+            if(AllPlayers.get(i).getUserID().equals(playerId)){
+                AllPlayers.remove(i);
+                reg.unbind(playerId.toString());
+                
+                System.out.println("Spieler entfernt");
+                
+                if(iAmPrimary == true) {
+                    sendMessage(connection, spreadGroupName, AllPlayers, playerMessage);
+                }
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public alcatraza2.Lobby createLobby(String lobbyname, UUID LobbyID, int playerCount) throws RemoteException {
+        alcatraza2.Lobby lobby = new alcatraza2.Lobby();
+        lobby.setLobbyID(LobbyID);
+        lobby.setLobbyName(lobbyname);
+        lobby.setMaxPlayer(playerCount);
+                
+        System.out.println("Lobby erstellt");
+        
+        Lobbies.add(lobby);
+        if(iAmPrimary == true) {
+            sendMessage(connection, spreadGroupName, Lobbies, lobbyMessage);
+        }
+        
+        return lobby;
+    }
+
+    @Override
+    public boolean joinLobby(User username, alcatraza2.Lobby lobby) throws RemoteException {
+       for(alcatraza2.Lobby lob : Lobbies){
+            if(lob.getLobbyID().equals(lobby.getLobbyID())) {
+                lob.addUser(username);
+                System.out.println("Added user: "+username.getUserName() +  " to lobby: " + lobby.getLobbyName());
+                if(iAmPrimary == true) {
+                    sendMessage(connection, spreadGroupName, Lobbies, lobbyMessage);
+                }
+                               
+       }
+        if(iAmPrimary == true) {
+            sendMessage(connection, spreadGroupName, Lobbies, lobbyMessage);
+        }
+        return true;
+        //ToDO Check return
+    }
+       return false;
+    }
+    
+    
+   
+     
+  
+    @Override
+    public boolean leaveLobby(User username, alcatraza2.Lobby lobby) throws RemoteException {
+       //TODO
+       
+        if(iAmPrimary == true) {
+            sendMessage(connection, spreadGroupName, Lobbies, lobbyMessage);
+        }
+        return true;
+        //TODO Check return
+    }
+
+  
+    private SpreadConnection initSpreadConnection(ArrayList<String> ipAdresses, String clientName) throws SpreadException, UnknownHostException
+    {
+        SpreadConnection newConnection = new SpreadConnection();
+        
+        for(String ipAdress : ipAdresses) {
+            try {
+                //java.net.InetAddress address, int port, java.lang.String privateName, boolean priority, boolean groupMembership 
+                newConnection.connect(InetAddress.getByName(ipAdress), 0, clientName, false, true);
+                System.out.println("connected to Spread Deamon @ "+ipAdress);
+                
+                //add advanced Message listener
+                newConnection.add(this);
+                return newConnection;
+                }
+            catch (SpreadException | UnknownHostException ex) {
+                //TO-DO;
+                }
+           
+        }
+        return null;
+    }
+    
+    private static void sendMessage(SpreadConnection connection, String groupname, Object data, short messagetype) {
+        try {
+            SpreadMessage message = new SpreadMessage();
+            message.setObject((Serializable)data);
+            message.addGroup(groupname);
+            message.setReliable(); 
+            message.setType(messagetype);
+            connection.multicast(message);
+        } catch (SpreadException ex) {
+            //TODO
+        }
+    }
+    
+    private void setMePrimary() throws RemoteException{
+        
+        this.currentPrimaryGroup = this.myGroup;
+        this.iAmPrimary = true;
+        System.out.println("New primary: "+myGroup.toString());
+        setRMIforPrimary();
+    }
+    
+    private void setRMIforPrimary() {
+        try {
+             ServerInt stub = (ServerInt) UnicastRemoteObject.exportObject(this, 0);
+          
+            reg = LocateRegistry.createRegistry(1099);
+            reg = LocateRegistry.getRegistry(1099);
+        
+            reg.rebind("Server", stub);
+        } catch (RemoteException ex) {
+            //TO-DO;
+            
+            leaveSpreadGroup(this.serverGroup);
+            disconnectSpread(this.connection);
+            
+            this.isRunning = false;
+            }
+    }
+    
+    private static SpreadGroup initSpreadGroup(SpreadConnection connection, String groupName)
+    {
+        SpreadGroup group = new SpreadGroup();
+        try {
+            group.join(connection, groupName);
+        } 
+        catch (SpreadException ex) {
+            //TO-DO;
+        }
+        return group;
+    }
+      
+    private static void leaveSpreadGroup(SpreadGroup group)
+    {
+        try {
+            group.leave();
+        } 
+        catch (SpreadException ex) {
+            //TO-DO;
+        } 
+    }
+    
+    private static void disconnectSpread(SpreadConnection connection)
+    {
+        try {
+            connection.disconnect();
+            System.out.println("disconnected");
+        } catch (SpreadException ex) {
+            //TO-DO;
+        }  
+    }
+    
+    @Override
+    public void membershipMessageReceived(SpreadMessage message){
+        MembershipInfo membership = message.getMembershipInfo();
+       
+        System.out.println("New membership message from: " + message.getMembershipInfo().getGroup());
+        
+        if(membership.isCausedByJoin())
+        {
+            if (membership.getMembers().length == 1) { 
+                try { 
+                    setMePrimary();
+                } catch (RemoteException ex) {
+                    //TO-DO;
+                }
+            }
+            
+            if(this.iAmPrimary == true) {
+                sendMessage(connection, spreadGroupName, "" , primaryMessage);
+                System.out.println("primary message sent");
+                sendMessage(connection, spreadGroupName, Lobbies, lobbyMessage);
+                System.out.println("Lobby message sent");    
+                sendMessage(connection, spreadGroupName, AllPlayers, playerMessage );
+                System.out.println("Player message sent");  
+            }
+        }
+        
+        if(membership.isCausedByDisconnect() || membership.isCausedByLeave() || membership.isCausedByNetwork())
+        {
+            boolean primaryFound = false;
+            System.out.println("Member left Group: "+ message.getSender().toString());
+            
+            for (SpreadGroup member : membership.getMembers())
+            {
+                if(member.equals(this.currentPrimaryGroup))
+                {
+                    primaryFound = true;
+                    System.out.println("Primary still exists");
+                    break;
+                }
+            }
+            
+            if(primaryFound == false)
+            {
+                System.out.println("Primary is gone");
+                
+                if (membership.getMembers().length == 1) { 
+                    try { 
+                        setMePrimary();
+                    } catch (RemoteException ex) {
+                        //TO-DO;
+                    }
+                }
+                else {
+                    this.currentPrimaryGroup = membership.getMembers()[0];
+                    System.out.println("New Primary: "+ membership.getMembers()[0].toString());
+                
+                    if (this.currentPrimaryGroup.equals(this.myGroup)) {
+                        try {
+                            setMePrimary();
+                        } catch (RemoteException ex) {
+                            //TO-DO;
+                        }
+                    }
+                }
+            }
+        }   
+    }
+    
+    @Override
+    public void regularMessageReceived(SpreadMessage message) {
+        if(message.getType() == primaryMessage) {
+                this.currentPrimaryGroup = message.getSender();
+                System.out.println("primary set: "+ this.currentPrimaryGroup.toString());    
+        }
+        
+        if(message.getType() == lobbyMessage)
+        {
+            try {
+                this.Lobbies = (ArrayList<alcatraza2.Lobby>) message.getObject();
+                System.out.println("Lobbies updated: " + this.Lobbies.size());
+                } catch (SpreadException ex) {
+                //TODO 
+            }
+        }
+        if(message.getType() == playerMessage)
+        {
+            try {
+                this.AllPlayers = (ArrayList<User>) message.getObject();
+                System.out.println("User list updated");
+                
+            } catch (SpreadException ex) {
+                //TODO 
+            }
+        }
+    }  
+    
+ 
+    private Properties readProperties() throws FileNotFoundException, IOException 
+    {
+        File file = new File("config.properties");
+        
+        Properties properties;
+        
+        try (FileInputStream fileInput = new FileInputStream(file)) {
+            properties = new Properties();
+            properties.load(fileInput);
+        }
+        return properties;            
+    }
+    
+ 
+    private ArrayList<String> GetSpreadIps(Properties properties)
+    {
+        ArrayList<String> spreadIps = new ArrayList<>();
+        
+        Enumeration keys = properties.keys();
+        
+        while (keys.hasMoreElements()) {
+            String key = keys.nextElement().toString();
+            
+            if (key.contains("spreadIp")) {
+                spreadIps.add(properties.getProperty(key));
+            }
+        }
+        System.out.println("SpreadIPs: " + spreadIps);
+        return spreadIps;
+    }
+   
+    public boolean GetIsRunning() {
+        return this.isRunning;
+    }
+
+    @Override
+    public ArrayList<Lobby> sendlobby() throws RemoteException {
+        
+        if(Lobbies.size() > 1)
+            System.out.println("Lobbies geschickt |" + Lobbies.size() +"|" +Lobbies.get(Lobbies.size()-1).getLobbyName());
+        
+        return Lobbies; 
+        
+    }
+}

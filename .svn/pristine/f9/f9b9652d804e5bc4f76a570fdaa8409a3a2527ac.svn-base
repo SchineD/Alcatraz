@@ -1,0 +1,219 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package alcatraz.client;
+
+import alcatraza2.*;
+import alcatraz.server.ServerInt;
+import java.rmi.AlreadyBoundException;
+import java.rmi.NotBoundException;
+import java.rmi.RemoteException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
+import java.rmi.server.UnicastRemoteObject;
+import java.util.ArrayList;
+import java.util.UUID;
+
+import javafx.application.*;
+import javafx.scene.*;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.stage.Stage;
+import javafx.collections.ObservableList;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+
+import at.falb.games.alcatraz.api.*;
+import javafx.collections.FXCollections;
+import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
+/**
+ *
+ * @author alexa
+ */
+public class superClientImpl extends Application implements ClientInt, MoveListener{
+        
+    final ToggleGroup toggle = new ToggleGroup();
+    static ServerInt stub;
+    public User SuperUser = new User();
+    ListView<String> list = new ListView<>();
+    ArrayList<alcatraza2.Lobby> lobbylist = new ArrayList();
+    alcatraza2.Lobby Lobby = new alcatraza2.Lobby();
+         
+    public static void main(String[] args) throws RemoteException, NotBoundException, AlreadyBoundException {
+        launch(args);
+    }
+    
+    @Override
+    public void start(final Stage stage) throws RemoteException, NotBoundException, AlreadyBoundException{
+        BorderPane startPane = new BorderPane();
+        try {
+            register();
+        } catch (RemoteException|NotBoundException|AlreadyBoundException ex) {
+            //TO-DO
+        }
+        
+        startPane.setLeft(createLeftPane());
+	startPane.setBottom(createBottomPane());
+	startPane.setCenter(createCenterPane());
+	
+        stage.setTitle("Create your Game!");
+	stage.setScene(new Scene(startPane, 350, 350));
+	stage.show();
+    }
+    
+    private void register() throws RemoteException, NotBoundException, AlreadyBoundException {
+        ClientInt player = new ClientImpl();
+
+        SuperUser.setUserID(UUID.randomUUID());
+        SuperUser.setClient((ClientInt) UnicastRemoteObject.exportObject(player, 0));
+        try{
+            Registry reg = LocateRegistry.getRegistry(); 
+            stub = (ServerInt) reg.lookup("Server");
+            stub.registerPlayer(SuperUser.getUserID(),SuperUser.getClient());
+        }
+        catch (Exception e){
+            //To-DO
+        }
+}
+
+private Pane createLeftPane() {
+        final VBox vbox = new VBox(10);
+        vbox.setPadding(new Insets(20, 10, 10, 10));
+        
+        RadioButton twoPlayers = new RadioButton("2");	
+        RadioButton threePlayers = new RadioButton("3");	
+        RadioButton fourPlayers = new RadioButton("4");
+        
+        twoPlayers.setSelected(true);
+        twoPlayers.setUserData(2);
+        threePlayers.setUserData(3);
+        fourPlayers.setUserData(4);
+        
+        vbox.getChildren().addAll(twoPlayers, threePlayers, fourPlayers);
+        twoPlayers.setToggleGroup(toggle);
+        threePlayers.setToggleGroup(toggle);
+        fourPlayers.setToggleGroup(toggle);
+        		
+	return vbox;
+    }
+
+private Pane createBottomPane(){
+        final HBox hbox = new HBox(10);
+		
+	hbox.setAlignment(Pos.CENTER);
+	hbox.setPadding(new Insets(10, 10, 10, 10));
+        Button join = new Button("Join"); 
+	Button exit = new Button("Exit"); 
+	
+        hbox.getChildren().addAll(join, exit);
+	
+        exit.setOnAction(new EventHandler<ActionEvent>() {
+            @Override
+            public void handle(ActionEvent e) {
+                /*try {
+                //clean up
+                } catch (Exception ex) {
+             
+                }*/
+                
+                Platform.exit();
+            }    
+        });
+	//TO-DO EventHandling   
+                
+        return hbox;
+}
+        
+
+ private BorderPane createCenterPane() throws RemoteException{
+        final BorderPane borderPane = new BorderPane();        
+        
+        borderPane.setTop(createNewLobbyPane());
+	borderPane.setCenter(LobbiesPane());
+        return borderPane;
+           
+    }
+ 
+ private ListView LobbiesPane() {
+      ObservableList<String> items = FXCollections.observableArrayList();
+  
+        try {
+            lobbylist = stub.sendlobby();
+        } catch (RemoteException ex) {
+            //TO-DO
+        }
+
+        for(alcatraza2.Lobby x : lobbylist){
+            items.add(x.getLobbyName());
+        }
+        
+        list.setItems(items);
+        list.setMaxWidth(260);
+       
+        return list;
+    }
+    
+    private GridPane createNewLobbyPane(){
+        GridPane gridPane = new GridPane();
+        final TextField LobbyName = new TextField();
+        Button CreateLobby = new Button("Create");
+        
+        gridPane.setPadding(new Insets(20, 10, 10, 10));
+        gridPane.setVgap(5);
+        gridPane.setHgap(5);
+        gridPane.setAlignment(Pos.CENTER);
+    
+        LobbyName.setPromptText("Enter Lobby Name");
+        LobbyName.setPrefColumnCount(12);
+        
+        gridPane.add(LobbyName, 0, 0);
+        gridPane.add(CreateLobby, 1, 0);
+        
+        CreateLobby.setOnAction(new EventHandler<ActionEvent>(){
+            @Override
+            public void handle(ActionEvent e) {
+                int x = 0;
+                if ((LobbyName.getText() != null && !LobbyName.getText().isEmpty())) {
+                    Lobby.setLobbyID(UUID.randomUUID());
+                    try {
+                        Lobby = stub.createLobby(LobbyName.getText(), Lobby.getLobbyID(), Integer.parseInt(toggle.getSelectedToggle().getUserData().toString()));
+                    } catch (RemoteException ex) {
+                        
+                    }
+                    LobbiesPane();
+                } 
+            }
+        });        
+        //TO-DO -> EventHandling 
+        
+        return gridPane;
+    }
+
+    @Override
+    public boolean updateMove(Move MoveParameters, String Username) throws RemoteException {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public boolean confirmMoveUpdate(UUID moveID, String Username) throws RemoteException {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public void leaveGame(UUID LobbyID, String Username) throws RemoteException {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public void moveDone(Player player, Prisoner prsnr, int i, int i1, int i2) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public void gameWon(Player player) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+}

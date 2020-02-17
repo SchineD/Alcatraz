@@ -1,0 +1,91 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package alcatraza2;
+
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.UUID;
+
+/**
+ *
+ * @author alexa
+ */
+public class Lobby implements Serializable {
+    private String LobbyName;
+    private UUID LobbyID;
+    private int MaxAmountOfPlayers;
+    private ArrayList<User> UserInLobby;
+    
+    public void addUser(User user) throws UserExistsException {
+        for(User x : UserInLobby){
+            if(x.getUserName().equals(user.getUserName()) ) throw new UserExistsException("User gibts bereits");
+            }
+        UserInLobby.add(user);
+        } 
+    
+    public void initUserInLobby(){
+        this.UserInLobby = new ArrayList<>();
+    }
+    
+    public void removeUser(User user) {
+        UserInLobby.remove(user);
+    }
+        
+    public void setLobbyName(String name){
+        this.LobbyName = name;
+    }
+    public void setLobbyID(UUID id){
+        this.LobbyID = id;
+    }
+    public void setMaxPlayer(int amount){
+        this.MaxAmountOfPlayers = amount;
+    }
+    
+    public String getLobbyName(){
+        return this.LobbyName;
+    }
+    public UUID getLobbyID(){
+        return this.LobbyID;
+    }
+    public int getMaxPlayer(){
+        return this.MaxAmountOfPlayers;
+    }
+    public int getPlayerInLobby(){
+        int i = 0;
+        for(User x : UserInLobby){
+            i++;
+        }        
+        return i;
+}
+    public ArrayList<User> getUserListInLobby(){
+        return this.UserInLobby;
+    }
+    
+    public String getPlayerNamesInLobby(){
+        String names = null;
+        
+        switch (UserInLobby.size()) {
+            case 1:
+                names = UserInLobby.get(0).getUserName();
+                break;
+            case 2:
+                names = UserInLobby.get(0).getUserName()+" ".concat(UserInLobby.get(1).getUserName());
+                break;
+            case 3:
+                names = UserInLobby.get(0).getUserName()+" ".concat(UserInLobby.get(1).getUserName())+ " ".concat(UserInLobby.get(2).getUserName());
+                break;
+            case 4:
+                names = UserInLobby.get(0).getUserName()+" ".concat(UserInLobby.get(1).getUserName())+ " ".concat(UserInLobby.get(2).getUserName())+ " ".concat(UserInLobby.get(3).getUserName());
+                break;
+            default:
+                break;
+        }
+        
+        return names;
+    }
+   
+}
+

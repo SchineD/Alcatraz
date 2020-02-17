@@ -1,0 +1,24 @@
+# To change this license header, choose License Headers in Project Properties.
+# To change this template file, choose Tools | Templates
+# and open the template in the editor.
+
+#spreadIpDefault=10.201.84.77
+#spreadIpFailover=10.201.93.19
+
+spreadIpDefault=192.168.0.31
+spreadIpFailover=192.168.0.52
+#Back Up Ip for Spread Daemon goes here:
+#spreadIpFailover=10.201.91.91
+
+
+#RMIIpDefault=10.201.93.19
+#RMIIpFailover=10.201.84.77
+
+RMIIpDefault=192.168.0.31
+RMIIpFailover=192.168.0.52
+#Back Up Ip for RMI Daemon goes here:
+#RMIIpFailover=10.201.91.91
+
+
+# Group Name for Spread Group
+spreadGroupName=A2
